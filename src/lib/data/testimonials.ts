@@ -1,0 +1,48 @@
+import { Testimonial } from '../../types';
+
+export const testimonialsData: Testimonial[] = [
+  {
+    id: 'test-1',
+    name: 'Amina Tariq',
+    role: 'Homeowner, DHA Phase 6',
+    city: 'Lahore',
+    quote: 'Green Decor completely revamped our rooftop patio into a serene oasis. The plant selection survives the intense summer heat effortlessly, and their team is always one WhatsApp message away for care tips!',
+    rating: 5,
+    photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+    serviceOrProduct: 'Rooftop Patio & Landscape Design',
+    featured: true,
+  },
+  {
+    id: 'test-2',
+    name: 'Bilal Chaudhry',
+    role: 'CEO, Apex Tech Hub',
+    city: 'Islamabad',
+    quote: 'We ordered 80 custom engraved jade plant pots for our annual summit and full office biophilic setup. Every guest was blown away by the craftsmanship and packaging. Exceptional quality!',
+    rating: 5,
+    photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
+    serviceOrProduct: 'Corporate Gifting & Office Plantation',
+    featured: true,
+  },
+  {
+    id: 'test-3',
+    name: 'Dr. Sarah Mansoor',
+    role: 'Interior Architect',
+    city: 'Karachi',
+    quote: 'The Monstera and Fiddle Leaf Figs arrived in Clifton in pristine condition with protective boxing. Their soil mix is unmatched — zero pests and lush root growth. Green Decor is my go-to recommendation for clients.',
+    rating: 5,
+    photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80',
+    serviceOrProduct: 'Exotic Plants & Fluted Terracotta Pots',
+    featured: true,
+  },
+  {
+    id: 'test-4',
+    name: 'Zainab Qureshi',
+    role: 'Restaurateur, Kohsar Market',
+    city: 'Islamabad',
+    quote: 'Their rimless planted aquarium and outdoor courtyard greenery gave our cafe an unmistakable signature charm. Customers take photos beside the plant wall every single day.',
+    rating: 5,
+    photoUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=400&q=80',
+    serviceOrProduct: 'Commercial Greenery & Aquariums',
+    featured: false,
+  },
+];
