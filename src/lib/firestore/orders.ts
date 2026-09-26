@@ -3,7 +3,7 @@
 import { Order, OrderStatus } from '@/types';
 import { COLLECTIONS } from '@/lib/firestore/collections';
 import { db } from '@/lib/firebase';
-import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, type DocumentReference } from 'firebase/firestore';
 import { updateDocById } from '@/lib/firestore/crud';
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
@@ -31,6 +31,19 @@ function toIso(date: string | { toDate?: () => Date } | undefined): string {
 }
 
 /**
+ * Resolves the Firestore document for an order.
+ *
+ * Orders are created with `addDoc`, so the document id is auto-generated while
+ * the `id` field holds the customer-facing number (`GD-49371`). Writing to
+ * `doc(orders, order.id)` targets a document that does not exist, which is why
+ * status updates used to fail with "Order no longer exists". Always prefer
+ * `docId`; `id` is only a fallback for objects that never came from a snapshot.
+ */
+function orderRef(order: Order) {
+  return doc(db, COLLECTIONS.orders, order.docId || order.id);
+}
+
+/**
  * Updates the order status, appending to `statusHistory`. Adjusts product
  * stock when the order ships (deduct) or is cancelled (restore).
  */
@@ -48,11 +61,11 @@ export async function updateOrderStatusWithStock(
     note,
   };
 
-  const orderRef = doc(db, COLLECTIONS.orders, order.id);
+  const ref = orderRef(order);
 
   try {
     await runTransaction(db, async (transaction) => {
-      const snap = await transaction.get(orderRef);
+      const snap = await transaction.get(ref);
       if (!snap.exists()) throw new Error('Order no longer exists');
 
       const current = snap.data() as Record<string, unknown>;
@@ -65,24 +78,41 @@ export async function updateOrderStatusWithStock(
       const currentHistory = Array.isArray(current.statusHistory) ? (current.statusHistory as unknown[]) : [];
       const history = [...currentHistory, historyEntry];
 
-      transaction.update(orderRef, {
-        status: nextStatus,
-        statusHistory: history,
-      });
-
+      // Firestore requires every read to precede every write, so the product
+      // documents are read up front into a map and only then mutated. Reading
+      // them after `transaction.update` throws and silently aborted every
+      // "shipped" / "cancelled" transition.
+      const stockUpdates: { ref: DocumentReference; stock: number }[] = [];
       if (effectiveChange) {
         const items = (current.items as Order['items']) ?? order.items;
-        for (const item of items) {
+        // Quantities are summed per product first: the same product can appear
+        // in more than one line item, and it must be read (and written) once
+        // with the combined quantity.
+        const quantities = new Map<string, number>();
+        for (const item of items ?? []) {
           if (!item.product?.id) continue;
-          const productRef = doc(db, COLLECTIONS.products, item.product.id);
+          const id = item.product.id;
+          quantities.set(id, (quantities.get(id) ?? 0) + item.quantity);
+        }
+
+        for (const [productId, quantity] of quantities) {
+          const productRef = doc(db, COLLECTIONS.products, productId);
           const productSnap = await transaction.get(productRef);
           if (!productSnap.exists()) continue;
           const productData = productSnap.data() as { stock?: number };
           const currentStock = typeof productData.stock === 'number' ? productData.stock : 0;
-          const delta = effectiveChange === 'deduct' ? -item.quantity : item.quantity;
-          const nextStock = Math.max(0, currentStock + delta);
-          transaction.update(productRef, { stock: nextStock });
+          const delta = effectiveChange === 'deduct' ? -quantity : quantity;
+          stockUpdates.push({ ref: productRef, stock: Math.max(0, currentStock + delta) });
         }
+      }
+
+      transaction.update(ref, {
+        status: nextStatus,
+        statusHistory: history,
+      });
+
+      for (const { ref: productRef, stock } of stockUpdates) {
+        transaction.update(productRef, { stock });
       }
     });
 
@@ -96,7 +126,7 @@ export async function updateOrderPaymentStatus(
   order: Order,
   paymentStatus: Order['paymentStatus']
 ): Promise<TrackResult> {
-  const result = await updateDocById(COLLECTIONS.orders, order.id, {
+  const result = await updateDocById(COLLECTIONS.orders, order.docId || order.id, {
     paymentStatus,
     paymentUpdatedAt: serverTimestamp(),
   });
@@ -108,7 +138,7 @@ export async function setOrderTrackingNumber(
   order: Order,
   trackingNumber: string
 ): Promise<TrackResult> {
-  const result = await updateDocById(COLLECTIONS.orders, order.id, {
+  const result = await updateDocById(COLLECTIONS.orders, order.docId || order.id, {
     trackingNumber,
     trackingUpdatedAt: serverTimestamp(),
   });

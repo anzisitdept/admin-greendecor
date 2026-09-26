@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { where, type QueryConstraint } from 'firebase/firestore';
 import {
   ArrowLeft,
   Package,
@@ -15,7 +16,7 @@ import {
   StickyNote,
 } from 'lucide-react';
 import { Order, OrderStatus, PaymentMethod } from '@/types';
-import { useFirestoreDoc } from '@/lib/firestore/hooks';
+import { useFirestoreCollection } from '@/lib/firestore/hooks';
 import { COLLECTIONS } from '@/lib/firestore/collections';
 import {
   updateOrderStatusWithStock,
@@ -44,7 +45,19 @@ export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { pushSuccess, pushError } = useToast();
-  const { data: order, loading } = useFirestoreDoc<Order>(COLLECTIONS.orders, params.id);
+
+  // Orders are created with `addDoc`, so the Firestore document id is
+  // auto-generated and does NOT match the `GD-xxxxx` number in the URL. A
+  // direct `getDoc` by that number always missed and rendered "Order not
+  // found", which is why the status stepper looked unreachable. Query the `id`
+  // field instead. The constraint array must be referentially stable or the
+  // hook resubscribes on every render.
+  const orderId = params.id;
+  const constraints = useMemo(() => [where('id', '==', orderId)] as QueryConstraint[], [orderId]);
+  const { data: matches, loading } = useFirestoreCollection<Order>(COLLECTIONS.orders, {
+    where: constraints,
+  });
+  const order = matches[0] ?? null;
 
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -256,7 +269,7 @@ export default function OrderDetailPage() {
               </div>
               {order.discount ? (
                 <div className="flex justify-between text-[#52685a]">
-                  <span>Discount</span>
+                  <span>Discount{order.promoCode ? ` (${order.promoCode})` : ''}</span>
                   <span className="text-[#b85b2e]">−{formatPKR(order.discount ?? 0)}</span>
                 </div>
               ) : null}

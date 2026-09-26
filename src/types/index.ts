@@ -50,20 +50,6 @@ export interface ServiceItem {
   faqs: { question: string; answer: string }[];
 }
 
-export interface PromoSlide {
-  id: string;
-  title: string;
-  kicker: string;
-  subtitle: string;
-  ctaLabel: string;
-  ctaHref: string;
-  badge?: string;
-  bgGradient: string;
-  imageUrl: string;
-  active: boolean;
-  order: number;
-}
-
 export interface Testimonial {
   id: string;
   name: string;
@@ -130,7 +116,10 @@ export const ORDER_STATUS_FLOW: OrderStatus[] = [
 ];
 
 export interface Order {
+  /** Customer-facing order number, e.g. `GD-49371`. NOT the document id. */
   id: string;
+  /** Real Firestore document id (orders are created with `addDoc`). */
+  docId?: string;
   userId?: string;
   items: CartItem[];
   shippingAddress: OrderAddress;
@@ -140,6 +129,7 @@ export interface Order {
   shippingFee: number;
   discount: number;
   total: number;
+  promoCode?: string;
   status: OrderStatus;
   trackingNumber: string;
   createdAt: string;
@@ -167,11 +157,22 @@ export interface ServiceRequest {
   status: ServiceRequestStatus;
 }
 
-export type UserRole = 'admin' | 'staff' | 'customer';
+export type UserRole = 'admin' | 'user';
 export type UserStatus = 'active' | 'disabled';
 
+/**
+ * How a record got into `users`.
+ * - `registration` — signed up through the storefront (keyed by auth uid)
+ * - `welcome-popup` — claimed a welcome code without an account (keyed by
+ *   normalised contact), so there is no `uid` and no `addresses`
+ */
+export type UserSource = 'registration' | 'welcome-popup' | string;
+
 export interface UserProfile {
-  uid: string;
+  /** Firestore document id. Equals `uid` for accounts, normalised contact for
+   *  welcome signups. Always prefer this over the `uid` field when writing. */
+  id?: string;
+  uid?: string;
   name: string;
   email: string;
   phone?: string;
@@ -181,7 +182,18 @@ export interface UserProfile {
   addresses: OrderAddress[];
   createdAt: string;
   lastLogin?: string;
+  source?: UserSource;
+  /** Welcome coupon this person claimed, if any. */
+  welcomeCode?: string;
+  welcomeClaimedAt?: string;
 }
+
+/**
+ * How a coupon came into existence. `welcome-popup` coupons are minted
+ * server-side by the storefront's welcome-coupon endpoint and carry the
+ * visitor's claim metadata below; `manual` coupons are typed in by staff.
+ */
+export type CouponSource = 'welcome-popup' | 'manual' | 'campaign';
 
 export interface Coupon {
   id: string;
@@ -194,6 +206,38 @@ export interface Coupon {
   usedCount: number;
   expiresAt?: string;
   createdAt: string;
+  /** Claim metadata. The cart ignores these; the admin UI lists them. */
+  source?: CouponSource | string;
+  /**
+   * @deprecated Never write these. `coupons` is world-readable, so claimant PII
+   * would be public. Read `welcomeSubscribers` by `code` instead. Kept only so
+   * legacy documents that still carry them remain type-compatible.
+   */
+  contact?: string;
+  /** @deprecated See {@link Coupon.contact}. */
+  email?: string;
+  note?: string;
+  claimedAt?: string;
+}
+
+export type WelcomeSubscriberStatus = 'active' | 'used' | 'expired';
+
+/**
+ * One document per welcome-popup signup, written in the same batch as the
+ * coupon it was issued. `contact` is the dedupe key (normalised digits with a
+ * leading 92), so a visitor who submits twice reuses the original code.
+ */
+export interface WelcomeSubscriber {
+  id: string;
+  contact: string;
+  email?: string;
+  code: string;
+  status: WelcomeSubscriberStatus;
+  source?: string;
+  ipHash?: string;
+  userAgent?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ContactMessage {

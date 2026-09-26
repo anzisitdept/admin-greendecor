@@ -11,7 +11,8 @@ import { PageHeader, EmptyState } from '@/components/admin/PageHeader';
 import { Card } from '@/components/admin/Card';
 import { StatusPill, orderStatusTone, paymentStatusTone } from '@/components/admin/StatusPill';
 import { TableSkeleton } from '@/components/admin/Skeleton';
-import { ORDER_STATUS_LABELS } from '@/lib/firestore/orders';
+import { ORDER_STATUS_LABELS, updateOrderStatusWithStock } from '@/lib/firestore/orders';
+import { useToast } from '@/components/admin/Toast';
 
 const STATUS_FILTERS: { value: 'all' | OrderStatus; label: string }[] = [
   { value: 'all', label: 'All statuses' },
@@ -32,6 +33,26 @@ export default function OrdersPage() {
   });
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'all' | OrderStatus>('all');
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const { pushSuccess, pushError } = useToast();
+
+  const changeStatus = async (order: Order, next: OrderStatus) => {
+    if (next === order.status) return;
+    if (next === 'cancelled') {
+      const ok = window.confirm(
+        `Cancel order #${order.id}? Product stock will be restored to inventory.`
+      );
+      if (!ok) return;
+    }
+    setBusyId(order.docId || order.id);
+    const result = await updateOrderStatusWithStock(order, next);
+    setBusyId(null);
+    if (result.error) {
+      pushError('Could not update status', result.error);
+      return;
+    }
+    pushSuccess('Order updated', `#${order.id} is now ${ORDER_STATUS_LABELS[next]}`);
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -117,7 +138,7 @@ export default function OrdersPage() {
               </thead>
               <tbody>
                 {filtered.map((o) => (
-                  <tr key={o.id} className="border-b border-[#e5ece3] last:border-0 hover:bg-[#fafbfa]">
+                  <tr key={o.docId || o.id} className="border-b border-[#e5ece3] last:border-0 hover:bg-[#fafbfa]">
                     <td className="px-4 py-3">
                       <Link href={`/admin/orders/${o.id}`} className="font-mono text-xs font-semibold text-[#14402a] hover:underline">
                         #{o.id.slice(0, 8)}
@@ -135,7 +156,22 @@ export default function OrdersPage() {
                       <StatusPill label={PAYMENT_LABELS[o.paymentMethod] ?? o.paymentMethod} tone={paymentStatusTone(o.paymentStatus)} />
                     </td>
                     <td className="px-4 py-3">
-                      <StatusPill label={ORDER_STATUS_LABELS[o.status] ?? o.status} tone={orderStatusTone(o.status)} dot />
+                      <div className="flex flex-col gap-1.5">
+                        <StatusPill label={ORDER_STATUS_LABELS[o.status] ?? o.status} tone={orderStatusTone(o.status)} dot />
+                        <select
+                          aria-label={`Update status for order ${o.id}`}
+                          value={o.status}
+                          disabled={busyId === (o.docId || o.id)}
+                          onChange={(e) => void changeStatus(o, e.target.value as OrderStatus)}
+                          className="w-full rounded-lg border border-[#d9e5dc] bg-white px-2 py-1.5 text-xs font-medium text-[#172b21] outline-none transition focus:border-[#38b000] focus:ring-2 focus:ring-[#38b000]/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {Object.entries(ORDER_STATUS_LABELS).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </td>
                   </tr>
                 ))}

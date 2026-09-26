@@ -25,6 +25,9 @@ const scriptFont = Alex_Brush({
 export const metadata: Metadata = {
   title: 'Green Decor Admin — Content & Order Management',
   description: 'Admin panel for the Green Decor botanical lifestyle studio.',
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

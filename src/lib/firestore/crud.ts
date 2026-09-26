@@ -76,6 +76,24 @@ export async function setDocById(
   }
 }
 
+/**
+ * Full overwrite (no merge). Use for documents with optional fields that staff
+ * need to be able to clear, since serializeForWrite drops undefined keys and a
+ * merged write would leave the previous value behind.
+ */
+export async function replaceDocById(
+  collectionName: string,
+  id: string,
+  data: object
+): Promise<DbResult<{ id: string }>> {
+  try {
+    await setDoc(doc(db, collectionName, id), serializeForWrite(data));
+    return { data: { id }, error: null };
+  } catch (e) {
+    return { data: null, error: e instanceof Error ? e.message : 'Failed to save document' };
+  }
+}
+
 export async function fetchDocRaw(collectionName: string, id: string): Promise<Record<string, unknown> | null> {
   const snap = await getDoc(doc(db, collectionName, id));
   return snap.exists() ? snap.data() : null;

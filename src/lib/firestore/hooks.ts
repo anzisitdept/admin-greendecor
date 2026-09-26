@@ -30,6 +30,19 @@ export interface UseFirestoreCollectionResult<T> {
   refetch: () => Promise<void>;
 }
 
+/**
+ * Deserialises a snapshot document for the admin UI.
+ *
+ * `docId` is always the real Firestore document id. It is exposed separately
+ * because a document's own `id` field shadows the injected one: orders are
+ * created with `addDoc` (auto id) but carry a human-facing `id` like
+ * `GD-49371`, so `id` and the document id are different values. Anything that
+ * writes must target `docId`, or it will hit a non-existent document.
+ */
+function withDocId<T extends object>(d: { id: string; data: () => Record<string, unknown> }): T {
+  return deserializeDoc<T>({ id: d.id, ...d.data(), docId: d.id });
+}
+
 export function useFirestoreCollection<T extends object>(
   collectionName: string,
   options?: UseFirestoreCollectionOptions
@@ -60,7 +73,7 @@ export function useFirestoreCollection<T extends object>(
     setLoading(true);
     try {
       const snap = await getDocs(buildQuery());
-      const docs = snap.docs.map((d) => deserializeDoc<T>({ id: d.id, ...d.data() }));
+      const docs = snap.docs.map((d) => withDocId<T>(d));
       setData(docs);
       setError(null);
     } catch (e) {
@@ -79,7 +92,7 @@ export function useFirestoreCollection<T extends object>(
     const unsub = onSnapshot(
       buildQuery(),
       (snap) => {
-        const docs = snap.docs.map((d) => deserializeDoc<T>({ id: d.id, ...d.data() }));
+        const docs = snap.docs.map((d) => withDocId<T>(d));
         setData(docs);
         setError(null);
         setLoading(false);
@@ -121,7 +134,7 @@ export function useFirestoreDoc<T extends object>(
     try {
       const snap = await getDoc(doc(db, collectionName, docId));
       if (snap.exists()) {
-        setData(deserializeDoc<T>({ id: snap.id, ...snap.data() }));
+        setData(withDocId<T>(snap));
       } else {
         setData(null);
       }
@@ -143,7 +156,7 @@ export function useFirestoreDoc<T extends object>(
       doc(db, collectionName, docId),
       (snap) => {
         if (snap.exists()) {
-          setData(deserializeDoc<T>({ id: snap.id, ...snap.data() }));
+          setData(withDocId<T>(snap));
         } else {
           setData(null);
         }

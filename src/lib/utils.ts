@@ -46,3 +46,35 @@ export function uid(): string {
   }
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
+
+function csvCell(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const text = String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+export interface CsvColumn {
+  key: string;
+  label: string;
+}
+
+export function toCsv(rows: Record<string, unknown>[], columns: CsvColumn[]): string {
+  const header = columns.map((c) => csvCell(c.label)).join(',');
+  const body = rows.map((row) => columns.map((c) => csvCell(row[c.key])).join(','));
+  return [header, ...body].join('\r\n');
+}
+
+/**
+ * Triggers a browser download. The BOM keeps Excel from mangling UTF-8.
+ */
+export function downloadCsv(filename: string, csv: string): void {
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}

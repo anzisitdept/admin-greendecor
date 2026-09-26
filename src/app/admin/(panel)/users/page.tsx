@@ -16,23 +16,37 @@ import { Modal } from '@/components/admin/Modal';
 import { useToast } from '@/components/admin/Toast';
 import { ORDER_STATUS_LABELS } from '@/lib/firestore/orders';
 import { orderStatusTone } from '@/components/admin/StatusPill';
+import { useAdminAuthStore } from '@/lib/store/useAdminAuthStore';
 
 const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
-  staff: 'Staff',
-  customer: 'Customer',
+  user: 'User',
 };
 
 const ROLE_TONES: Record<UserRole, string> = {
   admin: 'green',
-  staff: 'violet',
-  customer: 'gray',
+  user: 'gray',
 };
+
+/**
+ * `staff` and `customer` were retired in favour of a plain admin/user split.
+ * Documents written before that still carry the old values, so fold them into
+ * `user` on read instead of letting them vanish from every filter.
+ */
+function normalizeRole(role: string | undefined): UserRole {
+  return role === 'admin' ? 'admin' : 'user';
+}
+
+/** Welcome signups are keyed by contact and have no auth uid. */
+function docKey(u: UserProfile): string {
+  return u.id ?? u.uid ?? '';
+}
 
 export default function UsersPage() {
   const { data: users, loading } = useFirestoreCollection<UserProfile>(COLLECTIONS.users);
   const { data: orders } = useFirestoreCollection<Order>(COLLECTIONS.orders);
   const { pushSuccess, pushError } = useToast();
+  const adminUser = useAdminAuthStore((s) => s.adminUser);
 
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
@@ -54,42 +68,68 @@ export default function UsersPage() {
     const q = search.trim().toLowerCase();
     return users
       .filter((u) => {
-        if (roleFilter !== 'all' && u.role !== roleFilter) return false;
+        if (roleFilter !== 'all' && normalizeRole(u.role) !== roleFilter) return false;
         if (!q) return true;
         return (
           u.name?.toLowerCase().includes(q) ||
           u.email?.toLowerCase().includes(q) ||
           u.phone?.toLowerCase().includes(q) ||
-          (u.uid ?? '').toLowerCase().includes(q)
+          u.welcomeCode?.toLowerCase().includes(q) ||
+          (u.uid ?? '').toLowerCase().includes(q) ||
+          docKey(u).toLowerCase().includes(q)
         );
       })
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
   }, [users, search, roleFilter]);
 
   const setRole = async (u: UserProfile, role: UserRole) => {
-    const result = await updateDocById(COLLECTIONS.users, u.uid, { role });
+    const key = docKey(u);
+    if (!key) {
+      pushError('Could not update role', 'This record has no document id.');
+      return;
+    }
+    // Demoting the signed-in admin would revoke their own access mid-session:
+    // `isAdmin()` is what every Firestore rule checks, so they would be locked
+    // out of the panel entirely and could not undo it from the UI.
+    if (normalizeRole(u.role) === 'admin' && role !== 'admin' && key === docKey(adminUser ?? {} as UserProfile)) {
+      pushError(
+        'Cannot demote yourself',
+        'Ask another admin to change your role, otherwise you will lose access to this panel.'
+      );
+      return;
+    }
+    const result = await updateDocById(COLLECTIONS.users, key, { role });
     if (result.error) pushError('Could not update role', result.error);
     else pushSuccess('Role updated', `${u.name} is now ${ROLE_LABELS[role]}`);
   };
 
   const setStatus = async (u: UserProfile, status: UserStatus) => {
-    const result = await updateDocById(COLLECTIONS.users, u.uid, { status });
-    if (result.error) pushError('Could not update status', result.error);
-    else {
-      pushSuccess(status === 'active' ? 'Account enabled' : 'Account disabled', u.email);
-      setActiveUser((a) => (a?.uid === u.uid ? { ...a, status } : a));
+    const key = docKey(u);
+    if (!key) {
+      pushError('Could not update status', 'This record has no document id.');
+      return;
+    }
+    const result = await updateDocById(COLLECTIONS.users, key, { status });
+    if (result.error) {
+      pushError('Could not update status', result.error);
+    } else {
+      pushSuccess(
+        status === 'active' ? 'Account enabled' : 'Account disabled',
+        u.email || u.phone || key
+      );
+      setActiveUser((a) => (a && docKey(a) === key ? { ...a, status } : a));
     }
   };
 
   const userOrders = activeUser
-    ? orders.filter((o) => o.userId === activeUser.uid)
+    ? orders.filter((o) => o.userId && o.userId === docKey(activeUser))
     : [];
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Users"
-        subtitle={`${users.length} registered accounts`}
+        subtitle={`${users.length} people — accounts and welcome signups`}
       />
 
       <Card padded={false}>
@@ -104,7 +144,7 @@ export default function UsersPage() {
             />
           </div>
           <div className="flex gap-1.5">
-            {(['all', 'admin', 'staff', 'customer'] as const).map((r) => (
+            {(['all', 'admin', 'user'] as const).map((r) => (
               <button
                 key={r}
                 type="button"
@@ -127,7 +167,7 @@ export default function UsersPage() {
           <div className="p-6">
             <EmptyState
               title="No users found"
-              message="Accounts created on the store or via the seed script appear here."
+              message="Accounts created on the store and welcome-code signups appear here."
               icon={<UsersIcon className="h-6 w-6" />}
             />
           </div>
@@ -147,9 +187,11 @@ export default function UsersPage() {
               </thead>
               <tbody>
                 {filtered.map((u) => {
-                  const s = stats.get(u.uid);
+                  const s = stats.get(docKey(u));
+                  const role = normalizeRole(u.role);
+                  const isWelcome = u.source === 'welcome-popup' || !u.uid;
                   return (
-                    <tr key={u.uid} className="border-b border-[#e5ece3] last:border-0 hover:bg-[#fafbfa]">
+                    <tr key={docKey(u)} className="border-b border-[#e5ece3] last:border-0 hover:bg-[#fafbfa]">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           {u.photoURL ? (
@@ -157,22 +199,29 @@ export default function UsersPage() {
                             <img src={u.photoURL} alt="" className="h-9 w-9 rounded-full object-cover" />
                           ) : (
                             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eaf0e7] text-sm font-bold text-[#14402a]">
-                              {u.name?.slice(0, 1).toUpperCase()}
+                              {(u.name || u.phone || '?').slice(0, 1).toUpperCase()}
                             </span>
                           )}
                           <div>
-                            <p className="font-medium text-[#172b21]">{u.name}</p>
-                            <p className="text-xs text-[#aabcb0]">{u.email}</p>
+                            <p className="font-medium text-[#172b21]">{u.name || 'Guest signup'}</p>
+                            <p className="text-xs text-[#aabcb0]">
+                              {u.email || u.phone || docKey(u)}
+                            </p>
+                            {isWelcome && u.welcomeCode ? (
+                              <p className="mt-0.5 font-mono text-[11px] text-[#b85b2e]">
+                                {u.welcomeCode}
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <StatusPill label={ROLE_LABELS[u.role] ?? u.role} tone={ROLE_TONES[u.role] ?? 'gray'} />
+                        <StatusPill label={ROLE_LABELS[role]} tone={ROLE_TONES[role]} />
                       </td>
                       <td className="px-4 py-3">
                         <StatusPill
-                          label={u.status === 'active' ? 'Active' : 'Disabled'}
-                          tone={u.status === 'active' ? 'green' : 'red'}
+                          label={u.status === 'disabled' ? 'Disabled' : 'Active'}
+                          tone={u.status === 'disabled' ? 'red' : 'green'}
                           dot
                         />
                       </td>
@@ -181,7 +230,7 @@ export default function UsersPage() {
                       <td className="px-4 py-3 font-semibold text-[#172b21]">{formatPKR(s?.total ?? 0)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          <SelectRole value={u.role ?? 'customer'} onChange={(role) => setRole(u, role)} />
+                          <SelectRole value={role} onChange={(next) => setRole(u, next)} />
                           <button
                             type="button"
                             onClick={() => u.status === 'active' ? setStatus(u, 'disabled') : setStatus(u, 'active')}
@@ -235,15 +284,26 @@ export default function UsersPage() {
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-[#e5ece3] p-3 text-sm">
-                <p className="text-xs uppercase tracking-wide text-[#aabcb0]">Profile</p>
-                <p className="mt-1 font-medium text-[#172b21]">{activeUser.name}</p>
-                <p className="text-[#52685a]">{activeUser.phone || 'No phone'}</p>
-                <p className="text-[#52685a]">Joined {formatDate(activeUser.createdAt ?? '')}</p>
+                <p className="text-xs uppercase tracking-wide text-[#aabcb0]">Contact</p>
+                <p className="mt-1 font-medium text-[#172b21]">{activeUser.name || 'Guest signup'}</p>
+                <p className="text-[#52685a]">{activeUser.email || 'No email'}</p>
+                <p className="font-mono text-[#52685a]">
+                  {activeUser.phone || activeUser.uid || docKey(activeUser)}
+                </p>
+                <p className="mt-1 text-[#52685a]">Joined {formatDate(activeUser.createdAt ?? '')}</p>
+                {activeUser.welcomeCode ? (
+                  <p className="mt-1 font-mono text-[#b85b2e]">
+                    Welcome code {activeUser.welcomeCode}
+                  </p>
+                ) : null}
               </div>
               <div className="rounded-xl border border-[#e5ece3] p-3 text-sm">
                 <p className="text-xs uppercase tracking-wide text-[#aabcb0]">Access</p>
                 <p className="mt-1">
-                  <StatusPill label={ROLE_LABELS[activeUser.role] ?? activeUser.role} tone={ROLE_TONES[activeUser.role] ?? 'gray'} />
+                  <StatusPill
+                    label={ROLE_LABELS[normalizeRole(activeUser.role)]}
+                    tone={ROLE_TONES[normalizeRole(activeUser.role)]}
+                  />
                 </p>
                 <p className="mt-1">
                   <StatusPill
@@ -311,8 +371,7 @@ function SelectRole({ value, onChange }: { value: UserRole; onChange: (role: Use
       className="h-9 rounded-lg border border-[#e5ece3] bg-white px-2 text-xs font-medium text-[#52685a] focus:outline-none focus:ring-2 focus:ring-[#14402a]/30"
       title="Change role"
     >
-      <option value="customer">Customer</option>
-      <option value="staff">Staff</option>
+      <option value="user">User</option>
       <option value="admin">Admin</option>
     </select>
   );

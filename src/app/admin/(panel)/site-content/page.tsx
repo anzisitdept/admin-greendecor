@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useRef, useState } from 'react';
 import { Save, Send, Loader2 } from 'lucide-react';
@@ -14,7 +14,6 @@ import { StatusPill } from '@/components/admin/StatusPill';
 import { CardSkeleton } from '@/components/admin/Skeleton';
 import { TextInput } from '@/components/admin/form/TextInput';
 import { Textarea } from '@/components/admin/form/Textarea';
-import { Toggle } from '@/components/admin/form/Toggle';
 import { RepeatableField } from '@/components/admin/form/RepeatableField';
 import { IconPicker } from '@/components/admin/form/IconPicker';
 import { useToast } from '@/components/admin/Toast';
@@ -53,8 +52,6 @@ export default function SiteContentPage() {
   const published = doc?.published ?? false;
   const [saving, setSaving] = useState(false);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
-  const [promoEnabled, setPromoEnabled] = useState<boolean | null>(null);
-  const promoCarouselEnabled = promoEnabled ?? (doc as unknown as { promoCarouselEnabled?: boolean })?.promoCarouselEnabled ?? true;
 
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -80,7 +77,6 @@ export default function SiteContentPage() {
     setSaving(true);
     const payload = {
       content: current,
-      promoCarouselEnabled,
       published: publish,
       updatedAt: new Date().toISOString(),
     };
@@ -137,16 +133,6 @@ export default function SiteContentPage() {
       </Card>
 
       <Card>
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-serif text-lg text-[#172b21]">Promo carousel</h3>
-          <Toggle checked={promoCarouselEnabled} onChange={setPromoEnabled} label="Show carousel" />
-        </div>
-        <p className="text-sm text-[#52685a]">
-          The carousel slides themselves are managed in the Promos &amp; Banners module.
-        </p>
-      </Card>
-
-      <Card>
         <h3 className="mb-4 font-serif text-lg text-[#172b21]">Hero slides</h3>
         <RepeatableField<HeroSlide>
           items={current.heroSlides}
@@ -184,7 +170,7 @@ export default function SiteContentPage() {
                   className="flex-1"
                   value={slide.image}
                   onChange={(e) => update({ ...slide, image: e.target.value })}
-                  placeholder="https://…"
+                  placeholder="https://â€¦"
                 />
                 <div className="flex items-end">
                   <input

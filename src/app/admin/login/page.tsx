@@ -49,7 +49,6 @@ export default function AdminLoginPage() {
         </span>
         <p className="mt-4 font-serif text-2xl">Green Decor</p>
         <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-white/50">Admin Panel</p>
-        <p className="mt-4 font-script text-3xl text-[#d47343]">Nature’s touch</p>
 
         <div className="mt-8 w-full rounded-3xl border border-[#e5ece3] bg-white p-8 text-left text-[#172b21] card-shadow">
           <h1 className="font-serif text-2xl text-[#172b21]">Welcome back</h1>
@@ -112,11 +111,6 @@ export default function AdminLoginPage() {
               Sign in
             </Button>
           </form>
-
-          <p className="mt-5 text-center text-xs text-[#52685a]">
-            First time? Create the admin account with{' '}
-            <code className="rounded bg-[#f4f7f2] px-1 py-0.5">npm run seed:admin</code>
-          </p>
         </div>
 
         <p className="mt-8 text-xs text-white/50">

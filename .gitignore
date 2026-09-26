@@ -35,6 +35,11 @@ firebase-debug.*.log
 .firebase/
 .firebase.rules
 
+# service account keys contain a live private key - never commit these
+service-account.json
+*-service-account.json
+*serviceAccount*.json
+
 # IDE / Editors
 .vscode/*
 !.vscode/settings.json

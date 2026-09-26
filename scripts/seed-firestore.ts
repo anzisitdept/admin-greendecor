@@ -1,4 +1,4 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
+﻿import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getFirestore,
   doc,
@@ -9,7 +9,6 @@ import {
 import { signInWithEmailAndPassword, getAuth } from 'firebase/auth';
 import { productsData } from '../src/lib/data/products';
 import { servicesData } from '../src/lib/data/services';
-import { promoSlidesData } from '../src/lib/data/promos';
 import { testimonialsData } from '../src/lib/data/testimonials';
 import { loadEnv } from './loadEnv';
 
@@ -79,7 +78,6 @@ async function main(): Promise<void> {
 
   await seedCollection('products', productsData);
   await seedCollection('services', servicesData);
-  await seedCollection('promos', promoSlidesData);
   await seedCollection('testimonials', testimonialsData.map((t) => ({ ...t, approved: true })));
 
   // Default settings.general (shipping values mirror the store).
@@ -90,7 +88,7 @@ async function main(): Promise<void> {
       contactPhone: '+923001234567',
       contactEmail: 'hello@greendecor.pk',
       address: 'Lahore, Pakistan',
-      workingHours: 'Monday – Saturday, 10:00 AM – 7:00 PM',
+      workingHours: 'Monday â€“ Saturday, 10:00 AM â€“ 7:00 PM',
       shippingFreeThreshold: 4000,
       shippingFlatFee: 350,
       currencyLabel: 'PKR',
@@ -137,8 +135,8 @@ async function main(): Promise<void> {
         },
         footer: {
           about: 'Green Decor is Pakistan\u2019s botanical lifestyle and landscape studio.',
-          hours: 'Mon – Sat: 10 AM – 7 PM',
-          credits: '© Green Decor. All rights reserved.',
+          hours: 'Mon â€“ Sat: 10 AM â€“ 7 PM',
+          credits: 'Â© Green Decor. All rights reserved.',
         },
       },
     },

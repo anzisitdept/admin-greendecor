@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { UserProfile, UserRole } from '@/types';
+import { UserProfile } from '@/types';
 import { deserializeDoc } from '@/lib/firestore/serialize';
 import { COLLECTIONS } from '@/lib/firestore/collections';
 import { serverTimestamp } from '@/lib/firestore/crud';
@@ -31,12 +31,14 @@ async function loadProfile(uid: string, fallbackEmail: string, fallbackName: str
   if (snap.exists()) {
     return deserializeDoc<UserProfile>({ uid: snap.id, ...snap.data() });
   }
-  // Auto-bootstrap: if the user doc is missing, create it with role 'customer'.
+  // Auto-bootstrap: if the user doc is missing, create it as a plain user. It
+  // must never be 'admin' — Firestore rules reject a client that tries to mint
+  // its own admin role, and auto-granting here would be a privilege escalation.
   const profile: UserProfile = {
     uid,
     name: fallbackName || 'Green Decor User',
     email: fallbackEmail,
-    role: 'customer' as UserRole,
+    role: 'user',
     status: 'active',
     addresses: [],
     createdAt: new Date().toISOString(),
