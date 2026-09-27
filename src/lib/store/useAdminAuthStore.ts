@@ -20,6 +20,7 @@ interface AdminAuthStore {
   isAuthReady: boolean;
   loginError: string | null;
   init: () => void;
+  /** Admin staff sign in with email + password, unlike storefront customers. */
   login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
   updatePassword: (email: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;

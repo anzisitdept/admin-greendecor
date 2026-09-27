@@ -190,7 +190,7 @@ export type UserStatus = 'active' | 'disabled';
  * - `welcome-popup` — claimed a welcome code without an account (keyed by
  *   normalised contact), so there is no `uid` and no `addresses`
  */
-export type UserSource = 'registration' | 'welcome-popup' | string;
+export type UserSource = 'registration' | 'welcome-popup' | 'admin-created' | string;
 
 export interface UserProfile {
   /** Firestore document id. Equals `uid` for accounts, normalised contact for
@@ -198,7 +198,9 @@ export interface UserProfile {
   id?: string;
   uid?: string;
   name: string;
-  email: string;
+  /** Absent for phone-keyed accounts. Kept for legacy welcome records. */
+  email?: string;
+  /** Normalised E.164 form, e.g. `923001234567`. The account's identity. */
   phone?: string;
   photoURL?: string;
   role: UserRole;
@@ -247,17 +249,22 @@ export interface Coupon {
 export type WelcomeSubscriberStatus = 'active' | 'used' | 'expired';
 
 /**
- * One document per welcome-popup signup, written in the same batch as the
- * coupon it was issued. `contact` is the dedupe key (normalised digits with a
- * leading 92), so a visitor who submits twice reuses the original code.
+ * One document per subscriber, keyed by `contact` (normalised digits with a
+ * leading 92) so a visitor who submits twice reuses the original record.
+ *
+ * The collection carries two kinds of record: a welcome-popup claim, which also
+ * holds the coupon `code` it was issued, and a plain footer newsletter signup,
+ * which has no code at all. `newsletter` distinguishes the latter.
  */
 export interface WelcomeSubscriber {
   id: string;
   contact: string;
   email?: string;
-  code: string;
+  code?: string;
   status: WelcomeSubscriberStatus;
   source?: string;
+  /** Set when the record came from the footer newsletter form. */
+  newsletter?: boolean;
   ipHash?: string;
   userAgent?: string;
   createdAt: string;

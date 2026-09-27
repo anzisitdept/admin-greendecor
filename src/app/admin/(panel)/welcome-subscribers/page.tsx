@@ -51,6 +51,16 @@ interface SubscriberRow {
   subscriber: WelcomeSubscriber;
   coupon?: Coupon;
   status: WelcomeSubscriberStatus;
+  /** Plain footer newsletter signup: subscribed, but no coupon was issued. */
+  isNewsletterOnly: boolean;
+}
+
+/**
+ * A record with no `code` is a newsletter signup rather than a coupon claim, so
+ * "missing coupon" must not be reported for it — it was never meant to have one.
+ */
+function isNewsletterOnly(subscriber: WelcomeSubscriber): boolean {
+  return Boolean(subscriber.newsletter) && !subscriber.code;
 }
 
 /**
@@ -81,6 +91,7 @@ export default function WelcomeSubscribersPage() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | WelcomeSubscriberStatus>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'newsletter' | 'coupon'>('all');
   const [active, setActive] = useState<SubscriberRow | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -94,7 +105,12 @@ export default function WelcomeSubscribersPage() {
     () =>
       subscribers.map((subscriber) => {
         const coupon = couponByCode.get((subscriber.code ?? '').toUpperCase());
-        return { subscriber, coupon, status: resolveStatus(subscriber, coupon) };
+        return {
+          subscriber,
+          coupon,
+          status: resolveStatus(subscriber, coupon),
+          isNewsletterOnly: isNewsletterOnly(subscriber),
+        };
       }),
     [subscribers, couponByCode]
   );
@@ -103,6 +119,8 @@ export default function WelcomeSubscribersPage() {
     const q = search.trim().toLowerCase();
     return rows.filter((row) => {
       if (statusFilter !== 'all' && row.status !== statusFilter) return false;
+      if (typeFilter === 'newsletter' && !row.isNewsletterOnly) return false;
+      if (typeFilter === 'coupon' && row.isNewsletterOnly) return false;
       if (!q) return true;
       return (
         row.subscriber.contact?.toLowerCase().includes(q) ||
@@ -110,11 +128,13 @@ export default function WelcomeSubscribersPage() {
         row.subscriber.code?.toUpperCase().includes(q)
       );
     });
-  }, [rows, search, statusFilter]);
+  }, [rows, search, statusFilter, typeFilter]);
 
-  const activeCount = rows.filter((r) => r.status === 'active').length;
+  const activeCount = rows.filter((r) => r.status === 'active' && !r.isNewsletterOnly).length;
   const usedCount = rows.filter((r) => r.status === 'used').length;
-  const orphaned = rows.filter((r) => !r.coupon).length;
+  const newsletterCount = rows.filter((r) => r.isNewsletterOnly).length;
+  // Only coupon claims can go missing, so only they count as orphaned.
+  const orphaned = rows.filter((r) => !r.coupon && !r.isNewsletterOnly).length;
 
   const copyCode = async (code: string) => {
     try {
@@ -130,9 +150,10 @@ export default function WelcomeSubscribersPage() {
       filtered.map((row) => ({
         contact: row.subscriber.contact,
         email: row.subscriber.email ?? '',
-        code: row.subscriber.code,
+        type: row.isNewsletterOnly ? 'newsletter' : 'welcome-coupon',
+        code: row.subscriber.code ?? '',
         status: row.status,
-        coupon: row.coupon ? couponValueLabel(row.coupon) : 'missing',
+        coupon: row.coupon ? couponValueLabel(row.coupon) : row.isNewsletterOnly ? 'n/a' : 'missing',
         usedCount: row.coupon?.usedCount ?? '',
         usageLimit: row.coupon?.usageLimit ?? '',
         expiresAt: row.coupon?.expiresAt ?? '',
@@ -142,6 +163,7 @@ export default function WelcomeSubscribersPage() {
       [
         { key: 'contact', label: 'Contact' },
         { key: 'email', label: 'Email' },
+        { key: 'type', label: 'Type' },
         { key: 'code', label: 'Coupon code' },
         { key: 'status', label: 'Status' },
         { key: 'coupon', label: 'Coupon' },
@@ -178,7 +200,7 @@ export default function WelcomeSubscribersPage() {
     <div className="space-y-5">
       <PageHeader
         title="Welcome subscribers"
-        subtitle={`${subscribers.length} signups · ${activeCount} unused · ${usedCount} redeemed${
+        subtitle={`${subscribers.length} subscribers · ${activeCount} unused · ${usedCount} redeemed · ${newsletterCount} newsletter only${
           orphaned ? ` · ${orphaned} missing coupon` : ''
         }`}
         action={
@@ -214,6 +236,29 @@ export default function WelcomeSubscribersPage() {
                 )}
               >
                 {s === 'all' ? 'All' : STATUS_LABELS[s]}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1.5 rounded-xl border border-[#e5ece3] p-1">
+            {(
+              [
+                ['all', 'All types'],
+                ['coupon', 'Coupon'],
+                ['newsletter', 'Newsletter'],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTypeFilter(value)}
+                className={cn(
+                  'h-8 whitespace-nowrap rounded-lg px-3 text-xs font-semibold',
+                  typeFilter === value
+                    ? 'bg-[#14402a] text-white'
+                    : 'font-medium text-[#52685a] hover:text-[#14402a]'
+                )}
+              >
+                {label}
               </button>
             ))}
           </div>
@@ -265,53 +310,77 @@ export default function WelcomeSubscribersPage() {
                         ) : null}
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <span className="font-mono font-semibold text-[#172b21]">
-                          {subscriber.code}
-                        </span>
-                        {coupon ? (
-                          <span className="mt-0.5 block text-xs text-[#52685a]">
-                            {coupon.usedCount} / {coupon.usageLimit ?? '∞'} used
+                        {row.isNewsletterOnly ? (
+                          <span className="text-xs font-medium text-[#52685a]">
+                            Newsletter only
                           </span>
                         ) : (
-                          <span className="mt-0.5 block text-xs text-red-600">
-                            Coupon document missing
-                          </span>
+                          <>
+                            <span className="font-mono font-semibold text-[#172b21]">
+                              {subscriber.code}
+                            </span>
+                            {coupon ? (
+                              <span className="mt-0.5 block text-xs text-[#52685a]">
+                                {coupon.usedCount} / {coupon.usageLimit ?? '∞'} used
+                              </span>
+                            ) : (
+                              <span className="mt-0.5 block text-xs text-red-600">
+                                Coupon document missing
+                              </span>
+                            )}
+                          </>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 align-top text-[#52685a]">
-                        {couponValueLabel(coupon)}
+                        {row.isNewsletterOnly ? '—' : couponValueLabel(coupon)}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 align-top text-xs text-[#52685a]">
                         {formatDateTime(subscriber.createdAt)}
                       </td>
                       <td className="px-4 py-3 align-top">
                         <StatusPill
-                          label={STATUS_LABELS[status] ?? status}
-                          tone={STATUS_TONES[status]}
+                          label={row.isNewsletterOnly ? 'Subscribed' : STATUS_LABELS[status] ?? status}
+                          tone={row.isNewsletterOnly ? 'blue' : STATUS_TONES[status]}
                           dot
                         />
                       </td>
                       <td className="px-4 py-3 align-top">
                         <div className="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => copyCode(subscriber.code)}
-                            className="rounded-lg p-2 text-[#52685a] hover:bg-[#eaf0e7]"
-                            title="Copy code"
-                          >
-                            <Copy className="h-4 w-4" />
-                          </button>
-                          <a
-                            href={getWhatsAppLink(
-                              `Hi ${subscriber.contact}, here is your Green Decor welcome discount code: ${subscriber.code}`
-                            )}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="rounded-lg p-2 text-[#52685a] hover:bg-[#eaf0e7]"
-                            title="Send the code over WhatsApp"
-                          >
-                            <MessageCircle className="h-4 w-4" />
-                          </a>
+                          {subscriber.code ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => copyCode(subscriber.code!)}
+                                className="rounded-lg p-2 text-[#52685a] hover:bg-[#eaf0e7]"
+                                title="Copy code"
+                              >
+                                <Copy className="h-4 w-4" />
+                              </button>
+                              <a
+                                href={getWhatsAppLink(
+                                  `Hi ${subscriber.contact}, here is your Green Decor welcome discount code: ${subscriber.code}`
+                                )}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-lg p-2 text-[#52685a] hover:bg-[#eaf0e7]"
+                                title="Send the code over WhatsApp"
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </a>
+                            </>
+                          ) : (
+                            <a
+                              href={getWhatsAppLink(
+                                `Hi ${subscriber.contact}, you are subscribed to Green Decor updates. Reply STOP to opt out.`
+                              )}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-lg p-2 text-[#52685a] hover:bg-[#eaf0e7]"
+                              title="Message them on WhatsApp"
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                            </a>
+                          )}
                           <button
                             type="button"
                             onClick={() => setActive(row)}
@@ -342,14 +411,16 @@ export default function WelcomeSubscribersPage() {
               <Button variant="outline" onClick={() => setActive(null)}>
                 Close
               </Button>
-              <Button
-                variant="secondary"
-                onClick={() => copyCode(active.subscriber.code)}
-                disabled={busyId === active.subscriber.id}
-              >
-                <Copy className="h-4 w-4" />
-                Copy code
-              </Button>
+              {active.subscriber.code ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => copyCode(active.subscriber.code!)}
+                  disabled={busyId === active.subscriber.id}
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy code
+                </Button>
+              ) : null}
             </>
           ) : undefined
         }
@@ -358,8 +429,12 @@ export default function WelcomeSubscribersPage() {
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <StatusPill
-                label={STATUS_LABELS[active.status] ?? active.status}
-                tone={STATUS_TONES[active.status]}
+                label={
+                  active.isNewsletterOnly
+                    ? 'Subscribed'
+                    : STATUS_LABELS[active.status] ?? active.status
+                }
+                tone={active.isNewsletterOnly ? 'blue' : STATUS_TONES[active.status]}
                 dot
               />
               {active.subscriber.source ? (
@@ -408,6 +483,11 @@ export default function WelcomeSubscribersPage() {
                   <ExternalLink className="h-3 w-3" />
                 </Link>
               </div>
+            ) : active.isNewsletterOnly ? (
+              <p className="rounded-xl bg-[#f4f7f2] p-3 text-xs text-[#52685a]">
+                Newsletter subscription only — no welcome coupon was issued for this contact. Use
+                the WhatsApp action above to reach them.
+              </p>
             ) : (
               <p className="rounded-xl bg-red-50 p-3 text-xs text-red-700">
                 No coupon document matches{' '}
@@ -458,8 +538,9 @@ export default function WelcomeSubscribersPage() {
                 )}
               </div>
               <p className="mt-2 text-xs text-[#52685a]">
-                Manual overrides are stored on the subscriber, but the live coupon document wins
-                when the two disagree.
+                {active.isNewsletterOnly
+                  ? 'Use "Expired" to mark this contact as unsubscribed.'
+                  : 'Manual overrides are stored on the subscriber, but the live coupon document wins when the two disagree.'}
               </p>
             </div>
           </div>
