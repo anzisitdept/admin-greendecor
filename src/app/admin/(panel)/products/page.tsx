@@ -23,16 +23,19 @@ import { StatusPill } from '@/components/admin/StatusPill';
 import { TableSkeleton } from '@/components/admin/Skeleton';
 import { ConfirmModal, Modal } from '@/components/admin/Modal';
 import { NumberInput } from '@/components/admin/form/NumberInput';
-import { CATEGORIES, CATEGORY_LABELS } from '@/components/admin/forms/ProductForm';
+import { useShopCategories } from '@/lib/hooks/useShopCategories';
 import { useToast } from '@/components/admin/Toast';
 
 const LOW_STOCK_THRESHOLD = 6;
 
-const CATEGORY_FILTERS = [{ value: 'all', label: 'All categories' }, ...CATEGORIES];
-
 export default function ProductsPage() {
   const { data: products, loading } = useFirestoreCollection<Product>(COLLECTIONS.products);
   const { pushSuccess, pushError } = useToast();
+  const { categories, labels } = useShopCategories();
+  const categoryFilters = useMemo(
+    () => [{ value: 'all', label: 'All categories' }, ...categories],
+    [categories]
+  );
 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
@@ -154,7 +157,7 @@ export default function ProductsPage() {
             onChange={(e) => setCategory(e.target.value)}
             className="h-10 rounded-xl border border-[#e5ece3] bg-white px-3 text-sm focus:outline-none"
           >
-            {CATEGORY_FILTERS.map((c) => (
+            {categoryFilters.map((c) => (
               <option key={c.value} value={c.value}>
                 {c.label}
               </option>
@@ -256,7 +259,7 @@ export default function ProductsPage() {
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-[#52685a]">
-                      {CATEGORY_LABELS[p.category] ?? p.categoryLabel}
+                      {labels[p.category] ?? p.categoryLabel}
                     </td>
                     <td className="px-4 py-3">
                       <span className="font-semibold text-[#172b21]">{formatPKR(p.price ?? 0)}</span>

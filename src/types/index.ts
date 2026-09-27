@@ -1,11 +1,35 @@
 // Green Decor shared domain types (mirrors src/types/index.ts in the customer site),
 // extended by addition for the admin data layer.
 
+/**
+ * Slugs for the shop categories, mirroring the documents in the `categories`
+ * collection. The collection is the live source of truth; this union only
+ * constrains what the admin form will write, so a category that only exists in
+ * Firestore still needs to be added here before the form can save it.
+ */
+export const PRODUCT_CATEGORY_IDS = [
+  'aquarium',
+  'candles',
+  'pots',
+  'wall-hangings',
+  'chemicals',
+  'other',
+] as const;
+
+export type ProductCategory = (typeof PRODUCT_CATEGORY_IDS)[number];
+
+export interface ProductCategoryDoc {
+  id: ProductCategory;
+  label: string;
+  order: number;
+  active: boolean;
+}
+
 export interface Product {
   id: string;
   name: string;
   slug: string;
-  category: 'plants' | 'home-decor' | 'landscaping' | 'aquariums' | 'plant-care' | 'gift-pots';
+  category: ProductCategory;
   categoryLabel: string;
   price: number;
   salePrice?: number;

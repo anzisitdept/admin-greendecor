@@ -16,19 +16,7 @@ import { useToast } from '@/components/admin/Toast';
 import { slugify, uid } from '@/lib/utils';
 import { COLLECTIONS } from '@/lib/firestore/collections';
 import { createDoc, updateDocById } from '@/lib/firestore/crud';
-
-export const CATEGORIES: { value: Product['category']; label: string }[] = [
-  { value: 'plants', label: 'Plants & Planters' },
-  { value: 'home-decor', label: 'Home Decor' },
-  { value: 'landscaping', label: 'Landscaping' },
-  { value: 'aquariums', label: 'Aquariums' },
-  { value: 'plant-care', label: 'Plant Care Products' },
-  { value: 'gift-pots', label: 'Gift Pots & Custom Orders' },
-];
-
-export const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
-  CATEGORIES.map((c) => [c.value, c.label])
-);
+import { useShopCategories } from '@/lib/hooks/useShopCategories';
 
 export function getInitialProduct(): Product {
   const id = uid();
@@ -36,8 +24,8 @@ export function getInitialProduct(): Product {
     id,
     name: '',
     slug: '',
-    category: 'plants',
-    categoryLabel: 'Plants & Planters',
+    category: 'other',
+    categoryLabel: 'Other',
     price: 0,
     images: [],
     stock: 0,
@@ -63,6 +51,7 @@ export function getInitialProduct(): Product {
 export function ProductForm({ initial }: { initial: Partial<Product> }) {
   const router = useRouter();
   const { pushSuccess, pushError } = useToast();
+  const { categories, labels, error: categoriesError } = useShopCategories();
   const [form, setForm] = useState<Product>(() => {
     if (!initial.id) return getInitialProduct();
     const base = getInitialProduct();
@@ -93,7 +82,7 @@ export function ProductForm({ initial }: { initial: Partial<Product> }) {
       ...form,
       name: form.name.trim(),
       slug: form.slug.trim() || slugify(form.name),
-      categoryLabel: CATEGORY_LABELS[form.category] ?? form.categoryLabel,
+      categoryLabel: labels[form.category] ?? form.categoryLabel,
       inStock: form.inStock || (form.stock > 0 ? true : form.inStock),
       rating: Math.min(5, Math.max(0, Number(form.rating) || 0)),
       reviewCount: Number(form.reviewCount) || 0,
@@ -135,13 +124,32 @@ export function ProductForm({ initial }: { initial: Partial<Product> }) {
             label="Category"
             name="category"
             value={form.category}
-            onChange={(e) => set('category', e.target.value as Product['category'])}
+            onChange={(e) => {
+              const next = e.target.value as Product['category'];
+              // Keep the stored label in step with the pick, so the override
+              // field only has to be touched for a genuine custom name.
+              setForm((f) => ({
+                ...f,
+                category: next,
+                categoryLabel: labels[next] ?? f.categoryLabel,
+              }));
+            }}
+            hint={
+              categoriesError
+                ? 'Could not load categories — showing the built-in list.'
+                : undefined
+            }
           >
-            {CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <option key={c.value} value={c.value}>
                 {c.label}
               </option>
             ))}
+            {/* An existing product on a retired category must stay visible and
+                editable, otherwise opening it would silently switch category. */}
+            {form.category && !categories.some((c) => c.value === form.category) ? (
+              <option value={form.category}>{form.category} (retired)</option>
+            ) : null}
           </Select>
           <TextInput
             label="Category label (override)"

@@ -58,6 +58,19 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Shop categories
+    //   - readable by everyone: the storefront renders its category filter
+    //     from these documents, and the catalog must be correct for anonymous
+    //     visitors too
+    //   - writable by admins only, so categories cannot be injected from a
+    //     public browser
+    // ---------------------------------------------------------------------
+    match /categories/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
     // Reviews (submitted from the public site)
     //   - anyone may submit; must start as 'pending'
     //   - public read is limited to approved + general (they render live)
