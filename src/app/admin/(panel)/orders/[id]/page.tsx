@@ -14,6 +14,9 @@ import {
   Check,
   AlertCircle,
   StickyNote,
+  Banknote,
+  Hash,
+  Landmark,
 } from 'lucide-react';
 import { Order, OrderStatus, PaymentMethod } from '@/types';
 import { useFirestoreCollection } from '@/lib/firestore/hooks';
@@ -366,6 +369,76 @@ export default function OrderDetailPage() {
                 <option value="failed">failed</option>
               </Select>
             </div>
+
+            {order.paymentDetails ? (
+              <div className="mt-4 space-y-2.5 rounded-xl border border-[#e5ece3] bg-[#f4f7f2] p-3 text-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-[#52685a]">
+                  Customer transfer proof
+                </p>
+                <div className="flex items-start gap-2 text-[#172b21]">
+                  <Landmark className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    Paid from <strong>{order.paymentDetails.senderName}</strong>
+                    <br />
+                    <span className="text-[#52685a]">{order.paymentDetails.senderAccount}</span>
+                  </span>
+                </div>
+                {order.paymentDetails.transactionId ? (
+                  <div className="flex items-start gap-2 text-[#172b21]">
+                    <Hash className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      Transaction / TID: <strong>{order.paymentDetails.transactionId}</strong>
+                    </span>
+                  </div>
+                ) : null}
+                {order.paymentDetails.paidAmount ? (
+                  <div className="flex items-start gap-2 text-[#172b21]">
+                    <Banknote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      Amount sent: <strong>{formatPKR(order.paymentDetails.paidAmount)}</strong>
+                    </span>
+                  </div>
+                ) : null}
+                {order.paymentDetails.submittedAt ? (
+                  <p className="text-xs text-[#52685a]">
+                    Submitted {formatDateTime(order.paymentDetails.submittedAt)}
+                  </p>
+                ) : null}
+                {order.paymentDetails.receiptDataUrl ? (
+                  <a
+                    href={order.paymentDetails.receiptDataUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={order.paymentDetails.receiptDataUrl}
+                      alt="Payment receipt submitted by the customer"
+                      className="max-h-64 w-full rounded-xl border border-[#e5ece3] bg-white object-contain"
+                    />
+                    <span className="mt-1 block text-xs font-semibold text-[#14402a] underline underline-offset-4">
+                      Open full size{order.paymentDetails.receiptFileName
+                        ? ` — ${order.paymentDetails.receiptFileName}`
+                        : ''}
+                    </span>
+                  </a>
+                ) : (
+                  <p className="text-xs text-[#b85b2e]">No receipt image attached.</p>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={order.paymentStatus === 'paid'}
+                  onClick={() => updatePayment('paid')}
+                  className="w-full"
+                >
+                  <Check className="h-4 w-4" />
+                  Mark payment verified
+                </Button>
+              </div>
+            ) : null}
+
             <div className="mt-4 border-t border-[#e5ece3] pt-3">
               <label className="flex items-center gap-2 text-sm font-medium text-[#172b21]">
                 <Truck className="h-4 w-4" />

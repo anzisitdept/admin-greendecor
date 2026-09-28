@@ -162,6 +162,21 @@ export interface OrderAddress {
 
 export type PaymentMethod = 'cod' | 'jazzcash' | 'easypaisa' | 'bank_transfer';
 
+/**
+ * Proof of a manual bank/wallet transfer, submitted by the customer on the
+ * payment step. `receiptDataUrl` is a client-compressed data URL: the project
+ * has no Cloud Storage bucket, so the order document is where it lives.
+ */
+export interface OrderPaymentDetails {
+  senderName: string;
+  senderAccount: string;
+  transactionId?: string;
+  paidAmount?: number;
+  receiptDataUrl?: string;
+  receiptFileName?: string;
+  submittedAt: string;
+}
+
 export type OrderStatus = 'placed' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
 export const ORDER_STATUS_FLOW: OrderStatus[] = [
@@ -182,6 +197,8 @@ export interface Order {
   shippingAddress: OrderAddress;
   paymentMethod: PaymentMethod;
   paymentStatus: 'pending' | 'paid' | 'failed';
+  /** Set when the customer paid by transfer and submitted their proof. */
+  paymentDetails?: OrderPaymentDetails;
   subtotal: number;
   shippingFee: number;
   discount: number;
