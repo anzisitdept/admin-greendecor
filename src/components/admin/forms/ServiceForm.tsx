@@ -15,7 +15,7 @@ import { Card } from '@/components/admin/Card';
 import { useToast } from '@/components/admin/Toast';
 import { slugify, uid } from '@/lib/utils';
 import { COLLECTIONS } from '@/lib/firestore/collections';
-import { createDoc, updateDocById } from '@/lib/firestore/crud';
+import { createDoc, updateDocById, type DbResult } from '@/lib/firestore/crud';
 import { uploadImage } from '@/lib/firestore/storage';
 
 export function getInitialService(): ServiceItem {
@@ -36,7 +36,13 @@ export function getInitialService(): ServiceItem {
   };
 }
 
-export function ServiceForm({ initial }: { initial: Partial<ServiceItem> }) {
+export function ServiceForm({
+  initial,
+  isNew = false,
+}: {
+  initial: Partial<ServiceItem>;
+  isNew?: boolean;
+}) {
   const router = useRouter();
   const { pushSuccess, pushError } = useToast();
   const [form, setForm] = useState<ServiceItem>(() => {
@@ -76,6 +82,10 @@ export function ServiceForm({ initial }: { initial: Partial<ServiceItem> }) {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.title.trim()) {
+      pushError('Title is required');
+      return;
+    }
     setSaving(true);
     const payload = {
       ...form,
@@ -85,15 +95,29 @@ export function ServiceForm({ initial }: { initial: Partial<ServiceItem> }) {
         .map((p, i) => ({ ...p, step: i + 1 }))
         .filter((p) => p.title.trim() || p.desc.trim()),
     };
-    const result = initial.id
-      ? await updateDocById(COLLECTIONS.services, initial.id, payload)
-      : await createDoc(COLLECTIONS.services, payload, payload.slug || payload.id);
+
+    // The document id and the `id` field must stay the same value, otherwise
+    // every later edit/delete (which targets `id`) hits a missing document.
+    let result: DbResult<{ id: string }>;
+    if (isNew) {
+      const docId = payload.slug || payload.id;
+      if (!docId) {
+        setSaving(false);
+        pushError('Could not save service', 'The title does not produce a usable slug.');
+        return;
+      }
+      result = await createDoc(COLLECTIONS.services, { ...payload, id: docId }, docId);
+    } else if (initial.id) {
+      result = await updateDocById(COLLECTIONS.services, initial.id, payload);
+    } else {
+      result = { data: null, error: 'Missing service id — open the service from the list to edit it.' };
+    }
     setSaving(false);
     if (result.error) {
       pushError('Could not save service', result.error);
       return;
     }
-    pushSuccess(initial.id ? 'Service updated' : 'Service created', payload.title);
+    pushSuccess(isNew ? 'Service created' : 'Service updated', payload.title);
     router.push('/admin/services');
   };
 
@@ -259,7 +283,7 @@ export function ServiceForm({ initial }: { initial: Partial<ServiceItem> }) {
           Cancel
         </Button>
         <Button type="submit" loading={saving}>
-          {initial.id ? 'Save changes' : 'Create service'}
+          {isNew ? 'Create service' : 'Save changes'}
         </Button>
       </div>
     </form>

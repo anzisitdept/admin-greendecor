@@ -2,6 +2,8 @@ export const COLLECTIONS = {
   products: 'products',
   categories: 'categories',
   services: 'services',
+  galleryProjects: 'galleryProjects',
+  galleryCategories: 'galleryCategories',
   testimonials: 'testimonials',
   reviews: 'reviews',
   orders: 'orders',

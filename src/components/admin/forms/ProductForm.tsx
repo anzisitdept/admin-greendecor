@@ -15,7 +15,7 @@ import { Card } from '@/components/admin/Card';
 import { useToast } from '@/components/admin/Toast';
 import { slugify, uid } from '@/lib/utils';
 import { COLLECTIONS } from '@/lib/firestore/collections';
-import { createDoc, updateDocById } from '@/lib/firestore/crud';
+import { createDoc, updateDocById, type DbResult } from '@/lib/firestore/crud';
 import { useShopCategories } from '@/lib/hooks/useShopCategories';
 
 export function getInitialProduct(): Product {
@@ -48,7 +48,13 @@ export function getInitialProduct(): Product {
   };
 }
 
-export function ProductForm({ initial }: { initial: Partial<Product> }) {
+export function ProductForm({
+  initial,
+  isNew = false,
+}: {
+  initial: Partial<Product>;
+  isNew?: boolean;
+}) {
   const router = useRouter();
   const { pushSuccess, pushError } = useToast();
   const { categories, labels, error: categoriesError } = useShopCategories();
@@ -77,6 +83,10 @@ export function ProductForm({ initial }: { initial: Partial<Product> }) {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.name.trim()) {
+      pushError('Name is required');
+      return;
+    }
     setSaving(true);
     const payload = {
       ...form,
@@ -89,15 +99,28 @@ export function ProductForm({ initial }: { initial: Partial<Product> }) {
       stock: Math.max(0, Number(form.stock) || 0),
       price: Math.max(0, Number(form.price) || 0),
     };
-    const result = initial.id
-      ? await updateDocById(COLLECTIONS.products, initial.id, payload)
-      : await createDoc(COLLECTIONS.products, payload, payload.slug || payload.id);
+
+    // The document id and the `id` field must stay the same value, otherwise
+    // every later edit/delete (which targets `id`) hits a missing document.
+    let result: DbResult<{ id: string }>;
+    if (isNew) {
+      if (!payload.slug) {
+        setSaving(false);
+        pushError('Could not save product', 'The name does not produce a usable slug.');
+        return;
+      }
+      result = await createDoc(COLLECTIONS.products, { ...payload, id: payload.slug }, payload.slug);
+    } else if (initial.id) {
+      result = await updateDocById(COLLECTIONS.products, initial.id, payload);
+    } else {
+      result = { data: null, error: 'Missing product id — open the product from the list to edit it.' };
+    }
     setSaving(false);
     if (result.error) {
       pushError('Could not save product', result.error);
       return;
     }
-    pushSuccess(initial.id ? 'Product updated' : 'Product created', payload.name);
+    pushSuccess(isNew ? 'Product created' : 'Product updated', payload.name);
     router.push('/admin/products');
   };
 
@@ -342,7 +365,7 @@ export function ProductForm({ initial }: { initial: Partial<Product> }) {
           Cancel
         </Button>
         <Button type="submit" loading={saving}>
-          {initial.id ? 'Save changes' : 'Create product'}
+          {isNew ? 'Create product' : 'Save changes'}
         </Button>
       </div>
     </form>

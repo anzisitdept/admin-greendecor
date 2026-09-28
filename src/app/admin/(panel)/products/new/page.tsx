@@ -9,7 +9,7 @@ export default function NewProductPage() {
     <div className="space-y-5">
       <PageHeader title="New product" subtitle="The product will be live on the store as soon as it is published." />
       <Card>
-        <ProductForm initial={getInitialProduct()} />
+        <ProductForm initial={getInitialProduct()} isNew />
       </Card>
     </div>
   );

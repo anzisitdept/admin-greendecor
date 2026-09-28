@@ -74,6 +74,39 @@ export interface ServiceItem {
   faqs: { question: string; answer: string }[];
 }
 
+/**
+ * Filter categories for the public gallery. The storefront builds its filter
+ * tabs from these documents, so a category added here shows up on the gallery
+ * page without a redeploy. Document id is the slug used on `GalleryProject`.
+ */
+export interface GalleryCategory {
+  id: string;
+  label: string;
+  order: number;
+  active: boolean;
+}
+
+/**
+ * One project card on the public gallery page. `image` is the card/modal image
+ * (ImgBB or any absolute URL); `shortDetails` is the line revealed on hover.
+ */
+export interface GalleryProject {
+  id: string;
+  title: string;
+  /** Slug of a `galleryCategories` document. */
+  category: string;
+  /** Slug of a `services` document, when the project maps to a service. */
+  serviceSlug?: string;
+  image: string;
+  shortDetails: string;
+  details: string;
+  /** Lower sorts first on the public gallery. */
+  order: number;
+  /** Hidden from the storefront when false. */
+  active: boolean;
+  createdAt?: string;
+}
+
 export interface Testimonial {
   id: string;
   name: string;

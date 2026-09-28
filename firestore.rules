@@ -58,6 +58,22 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Gallery (public gallery page)
+    //   - readable by everyone: the storefront renders its filter tabs and
+    //     project cards from these documents for anonymous visitors
+    //   - writable by admins only
+    // ---------------------------------------------------------------------
+    match /galleryProjects/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /galleryCategories/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
     // Shop categories
     //   - readable by everyone: the storefront renders its category filter
     //     from these documents, and the catalog must be correct for anonymous

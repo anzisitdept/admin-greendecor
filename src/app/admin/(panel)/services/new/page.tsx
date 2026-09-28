@@ -9,7 +9,7 @@ export default function NewServicePage() {
     <div className="space-y-5">
       <PageHeader title="New service" subtitle="Field sets map 1:1 to the public service pages." />
       <Card>
-        <ServiceForm initial={getInitialService()} />
+        <ServiceForm initial={getInitialService()} isNew />
       </Card>
     </div>
   );
