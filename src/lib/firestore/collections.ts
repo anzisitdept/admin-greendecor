@@ -14,6 +14,7 @@ export const COLLECTIONS = {
   settings: 'settings',
   siteContent: 'siteContent',
   contactInquiries: 'contactInquiries',
+  designStudioLeads: 'designStudioLeads',
 } as const;
 
 export const SETTINGS_GENERAL_ID = 'general';

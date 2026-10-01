@@ -13,6 +13,7 @@ import {
   MessageSquareQuote,
   Ticket,
   UserPlus,
+  Sparkles,
   FileText,
   Users,
   Settings,
@@ -40,6 +41,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/admin/reviews', label: 'Reviews', icon: MessageSquareQuote },
   { href: '/admin/coupons', label: 'Coupons', icon: Ticket },
   { href: '/admin/welcome-subscribers', label: 'Welcome Subscribers', icon: UserPlus },
+  { href: '/admin/design-studio', label: 'Design Studio Leads', icon: Sparkles },
   { href: '/admin/site-content', label: 'Site Content', icon: FileText },
   { href: '/admin/users', label: 'Users', icon: Users },
 ];

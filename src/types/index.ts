@@ -321,6 +321,50 @@ export interface WelcomeSubscriber {
   updatedAt: string;
 }
 
+export type DesignStudioLeadStatus = 'new' | 'contacted' | 'converted' | 'dismissed';
+
+export const DESIGN_STUDIO_LEAD_STATUS_LABELS: Record<DesignStudioLeadStatus, string> = {
+  new: 'New',
+  contacted: 'Contacted',
+  converted: 'Converted',
+  dismissed: 'Dismissed',
+};
+
+/**
+ * How a Design Studio lead got into `designStudioLeads`.
+ * - `ai-studio` — generated concepts through the storefront's Design Studio
+ * - `manual` — typed in by staff
+ */
+export type DesignStudioLeadSource = 'ai-studio' | 'manual' | string;
+
+/**
+ * One row per design generation, written server-side by the storefront's
+ * `/api/design-studio` route. The studio collects a name and phone number
+ * before it will generate anything, so this is the only record that the visitor
+ * actually used the tool.
+ *
+ * Documents use auto ids rather than being keyed on `contact`, so repeat use by
+ * the same person shows up as separate rows and staff can see engagement over
+ * time. `contact` is normalised (digits with a leading 92) so search and
+ * de-duplication match the rest of the admin.
+ */
+export interface DesignStudioLead {
+  id: string;
+  /** Normalised contact, e.g. `923001234567`. */
+  contact: string;
+  name: string;
+  source?: DesignStudioLeadSource;
+  /** What the visitor asked for, trimmed to 2000 characters. */
+  description?: string;
+  /** Whether the visitor attached a reference photo of their space. */
+  hasImage?: boolean;
+  imageCount?: number;
+  status: DesignStudioLeadStatus;
+  userAgent?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ContactMessage {
   id: string;
   name: string;

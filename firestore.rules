@@ -160,6 +160,28 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---------------------------------------------------------------------
+    // Design Studio leads (contains phone numbers)
+    //   - never public: no read, no write, admins only
+    //   - the storefront records these server-side via the admin SDK, which
+    //     bypasses these rules entirely. An anonymous browser must not be able
+    //     to plant fake leads or read the contact details of real ones.
+    // ---------------------------------------------------------------------
+    match /designStudioLeads/{id} {
+      function validStudioLead() {
+        let d = request.resource.data;
+        return d.contact is string && d.contact.size() > 0 &&
+          d.name is string && d.name.size() > 0 &&
+          d.source in ['ai-studio', 'manual'] &&
+          d.status in ['new', 'contacted', 'converted', 'dismissed'];
+      }
+
+      allow read: if isAdmin();
+      allow create: if isAdmin() && validStudioLead();
+      allow update: if isAdmin() && validStudioLead();
+      allow delete: if isAdmin();
+    }
+
     match /settings/{id} {
       allow read: if true;
       allow write: if isAdmin();
